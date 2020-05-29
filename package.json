@@ -1,0 +1,15 @@
+{
+  "name": "ttamayo-lista-attributes-csv",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Victor Gonzalez",
+  "license": "ISC",
+  "dependencies": {
+    "papaparse": "^5.2.0",
+    "slugify": "^1.4.0"
+  }
+}
