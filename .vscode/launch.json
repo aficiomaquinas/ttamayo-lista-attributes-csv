@@ -12,7 +12,8 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}/app.js",
-            "args": ["/mnt/c/Users/Victor/Downloads/Costos materiales v2 - ProductosV2 (9).csv"]
+            // "args": ["/mnt/c/Users/Victor/Downloads/Costos materiales v2 - ProductosV2 (10).csv"]
+            "args": ["./example-in.csv"]
         }
     ]
 }
