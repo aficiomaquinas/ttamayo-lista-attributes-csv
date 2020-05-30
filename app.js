@@ -175,7 +175,8 @@ function addVariationAttrsToParents(arr) {
           row[getColumnNrByName(arr, `meta:attribute_${name}`)] = "";
         }
       }
-    } else if (row[typeColumnNum] == "variation") {
+    // Any other type of product
+    } else if (row[typeColumnNum] || row[getColumnNrByName(arr, "post_title")]) {
       const nameRegex = /Attribute \d+ Name/g;
       const globalRegex = /Attribute \d+ Global/g;
       const valueRegex = /Attribute \d+ Value\(s\)/g;
@@ -234,7 +235,7 @@ function removeUnusedCols(arr, usedColNames) {
 }
 
 function main() {
-  const productCols = [
+  const allCols = [
     "tax:product_type",
     "post_type",
     "menu_order",
@@ -276,6 +277,16 @@ function main() {
     "meta:total_sales",
     "tax:product_cat",
     "tax:product_tag",
+    
+  ];
+
+  const productCols = [
+    ...allCols,
+    /meta:attribute_.*/g,
+  ];
+
+  const variableCols = [
+    ...allCols,
     /attribute:.*/g,
     /attribute_data:.*/g,
     /attribute_default:.*/g,
@@ -301,7 +312,10 @@ function main() {
     /meta:attribute_.*/g,
   ];
 
-  const variationAndVariableCols = [...new Set(variationCols.concat(productCols))];
+  const variationAndVariableCols = [
+    ...new Set(variationCols.concat(variableCols)),
+  ];
+
   const fileNames = process.argv.splice(2);
   const listaCsv = fs.readFileSync(fileNames[0], 'utf8');
   const lista = Papa.parse(listaCsv);
@@ -334,7 +348,7 @@ function main() {
   const outVariablesCSV = Papa.unparse(
     removeUnusedCols(
       outVariables
-    , productCols)
+    , variableCols)
   );
 
   const outVariationsCSV = Papa.unparse(
