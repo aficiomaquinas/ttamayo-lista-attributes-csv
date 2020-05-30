@@ -25,7 +25,7 @@ function getColumnAttrDataByRegex(arr, getNameRegex, getInfoRegex) {
   return result;
 }
 
-function ttChildrenAttributeValues(parentSKU, attributeValueName, arr) {
+function childrenAttributeValues(parentSKU, arr) {
   const parentColumnNum = getColumnNrByName(arr, "parent_sku");
   const valueRegex = /Attribute \d+ Value\(s\)/g;
   const nameRegex = /Attribute \d+ Name/g;
@@ -35,14 +35,14 @@ function ttChildrenAttributeValues(parentSKU, attributeValueName, arr) {
   const attributeValueColumns = getColumnAttrDataByRegex(arr, valueRegex, /\d+/g);
   const attributeDataColumns = getColumnAttrDataByRegex(arr, dataRegex, /\d+/g);
   const attributeGlobalColumns = getColumnAttrDataByRegex(arr, globalRegex, /\d+/g);
-  const dataValues = [];
-  const globalValues = [];
-  const priceValues = [];
-  const childAttributeValues = arr.filter(row => row[parentColumnNum] == parentSKU).map((child) => {
+  const attributes = {};
+  const children = arr.filter(row => row[parentColumnNum] == parentSKU);
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
     for (let i = 0; i < child.length; i++) {
       const headerIsNameAttr = arr[0][i].match(nameRegex);
       // Current cell has attribute name and column name is attribute name
-      if (child[i] == attributeValueName && headerIsNameAttr && headerIsNameAttr.length) {
+      if (child[i] && headerIsNameAttr && headerIsNameAttr.length) {
         const attrName = attributeNameColumns.filter(obj => {
           return obj.index === i;
         });
@@ -55,28 +55,45 @@ function ttChildrenAttributeValues(parentSKU, attributeValueName, arr) {
         const attrGlobal = attributeGlobalColumns.filter(obj => {
           return obj.attrNum === attrName[0].attrNum;
         });
-        const currentAttrValue = child[attrValue[0].index];
-        dataValues.push(child[attrData[0].index]);
-        globalValues.push(child[attrGlobal[0].index]);
-        priceValues.push({
+        if (!attributes[child[i]]) {
+          attributes[child[i]] = {};
+          attributes[child[i]].values = [];
+          attributes[child[i]].data = [];
+          attributes[child[i]].global = [];
+          attributes[child[i]].prices = [];
+        }
+        attributes[child[i]].values.push(child[attrValue[0].index]);
+        attributes[child[i]].data.push(child[attrData[0].index]);
+        attributes[child[i]].global.push(child[attrGlobal[0].index]);
+        attributes[child[i]].prices.push({
           price: parseFloat(child[getColumnNrByName(arr, "regular_price")]),
           value: child[attrValue[0].index],
         });
-        return currentAttrValue;
       }
     }
-  });
-  const unique = childAttributeValues.filter((v, i, a) => a.indexOf(v) === i);
-  const withPrices = priceValues.filter((o) => o.price > 0);
-  const lowestPrice = Math.min(...withPrices.map((o) => o.price));
-  const defVal = priceValues.filter((o) => o.price == lowestPrice)[0];
-  const result = {
-    values: (unique && unique.length) ? unique.join("|") : "",
-    data: (dataValues && dataValues.length) ? dataValues[0] : "",
-    global: (globalValues && globalValues.length) ? globalValues[0] : "",
-    def: (defVal && defVal.value) ? defVal.value : "",
-  };
-  return result;
+  }
+  for (const key in attributes) {
+    if (attributes.hasOwnProperty(key)) {
+      const attr = attributes[key];
+      if (attr.values && attr.values.length) {
+        attr.values = attr.values.filter((v, i, a) => a.indexOf(v) === i).join("|");
+      }
+      if (attr.data && attr.data.length) {
+        attr.data = attr.data[0];
+      }
+      if (attr.global && attr.global.length) {
+        attr.global = attr.global[0];
+      }
+      if (attr.prices && attr.prices.length) {
+        const withPrices = attr.prices.filter((o) => o.price > 0);
+        const lowestPrice = Math.min(...withPrices.map((o) => o.price));
+        const def = attr.prices.filter((o) => o.price == lowestPrice)[0] 
+        attr.def = def && def.value ? def.value : "";
+      }
+      attr.name = key;
+    }
+  }
+  return Object.values(attributes);
 }
     
 function getNewColumnNamesFromArrAttrs(arr) {
@@ -154,31 +171,25 @@ function addVariationAttrsToParents(arr) {
   const newArr = arr.map((r) => {
     let row = r;
     if (row[typeColumnNum] == "variable") {
-      const variationAttrNameColumnNum = getColumnNrByName(arr, "Variation attribute names");
       const skuColumnNum = getColumnNrByName(arr, "sku");
       const parentSKU = row[skuColumnNum];
-      const variationAttributes = row[variationAttrNameColumnNum].replace(/\|$/, "").split("|");
-
-      let parentNewAttrNumber = 0;
-      for (let i = 0; i < variationAttributes.length; i++) {
-        const childrenAttrsVal = ttChildrenAttributeValues(parentSKU, variationAttributes[i], arr);
-        const thisAttrName = variationAttributes[i];
-        if (childrenAttrsVal) {
-          ++parentNewAttrNumber;
-          const glob = childrenAttrsVal.global == "1" ? "pa_" : "";
-          const name = glob + slugify(thisAttrName);
-          const usedInVariations = childrenAttrsVal.data.substr(-1) == "1" ? true : false;
-          row[getColumnNrByName(arr, `attribute:${name}`)] = childrenAttrsVal.values;
-          row[getColumnNrByName(arr, `attribute_data:${name}`)] = childrenAttrsVal.data;
-          row[getColumnNrByName(arr, `attribute_default:${name}`)] = usedInVariations ? childrenAttrsVal.def : "";
-          // row[getColumnNrByName(arr, `attribute_default:${name}`)] = "";
-          row[getColumnNrByName(arr, `meta:attribute_${name}`)] = "";
-        }
+      const childrenAttrs = childrenAttributeValues(parentSKU, arr);
+      for (let i = 0; i < childrenAttrs.length; i++) {
+        const childrenAttrsVal = childrenAttrs[i];
+        const glob = childrenAttrsVal.global == "1" ? "pa_" : "";
+        const name = glob + slugify(childrenAttrsVal.name);
+        const usedInVariations = childrenAttrsVal.data.substr(-1) == "1" ? true : false;
+        row[getColumnNrByName(arr, `attribute:${name}`)] = childrenAttrsVal.values;
+        row[getColumnNrByName(arr, `attribute_data:${name}`)] = childrenAttrsVal.data;
+        row[getColumnNrByName(arr, `attribute_default:${name}`)] = usedInVariations ? childrenAttrsVal.def : "";
+        // row[getColumnNrByName(arr, `attribute_default:${name}`)] = "";
+        row[getColumnNrByName(arr, `meta:attribute_${name}`)] = "";
       }
     // Any other type of product
     } else if (row[typeColumnNum] || row[getColumnNrByName(arr, "post_title")]) {
       const nameRegex = /Attribute \d+ Name/g;
       const globalRegex = /Attribute \d+ Global/g;
+      const dataRegex = /Attribute \d+ Data/g;
       const valueRegex = /Attribute \d+ Value\(s\)/g;
       const usedAttributeNameColumns = getColumnAttrDataByRegex(arr, nameRegex, /\d+/g).filter((i) => {
         return row[i.index];
@@ -189,18 +200,25 @@ function addVariationAttrsToParents(arr) {
       const usedAttributeGlobalColumns = getColumnAttrDataByRegex(arr, globalRegex, /\d+/g).filter((i) => {
         return row[i.index];
       });
+      const usedAttributeDataColumns = getColumnAttrDataByRegex(arr, dataRegex, /\d+/g).filter((i) => {
+        return row[i.index];
+      });
       for (let i = 0; i < usedAttributeValColumns.length; i++) {
         const attrVal = usedAttributeValColumns[i];
         const attrGlobal = usedAttributeGlobalColumns[i];
+        const attrData = usedAttributeDataColumns[i];
         const attrName = usedAttributeNameColumns.filter((nameObj) => nameObj.attrNum == attrVal.attrNum)[0];
         if (attrName) {
           const val = row[attrVal.index];
+          const data = row[attrData.index];
           const glob = row[attrGlobal.index] == "1" ? "pa_" : "";
           const name = glob + slugify(row[attrName.index]);
-          row[getColumnNrByName(arr, `meta:attribute_${name}`)] = val;
-          row[getColumnNrByName(arr, `attribute:${name}`)] = "";
-          row[getColumnNrByName(arr, `attribute_data:${name}`)] = "";
-          row[getColumnNrByName(arr, `attribute_default:${name}`)] = "";
+          if (row[typeColumnNum] == "variation") {
+            row[getColumnNrByName(arr, `meta:attribute_${name}`)] = val;
+          } else {
+            row[getColumnNrByName(arr, `attribute:${name}`)] = val;
+            row[getColumnNrByName(arr, `attribute_data:${name}`)] = data;
+          }
         }
       }
     }
@@ -282,7 +300,8 @@ function main() {
 
   const productCols = [
     ...allCols,
-    /meta:attribute_.*/g,
+    /attribute:.*/g,
+    /attribute_data:.*/g,
   ];
 
   const variableCols = [
