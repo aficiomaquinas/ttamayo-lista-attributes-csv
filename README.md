@@ -8,7 +8,7 @@ You are not alone! Some of us are having exactly the same problems.
 
 It seems that you have to [separate your CSV into multiple segments for it to work](https://docs.woocommerce.com/document/product-csv-importer-exporter/#section-7) but again, sometimes it doesn't, at least not for me.
 
-I had slightly better luck with the CSV import Suite Plugin, but the columns are formatted differently and honestly it requires you to do stuff that WooCommerce should do automatically. Why should you fill out the variable product with all it's variations options in the `attribute:` column? I don't know, but at least this script does it for you.
+I had slightly better luck with the CSV import Suite Plugin, but the columns are formatted differently and honestly it requires you to do stuff that WooCommerce should do automatically. Why should you fill out the variable product with all its variations options in the `attribute:` column? I don't know, but at least this script does it for you.
 
 
 Installation
